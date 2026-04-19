@@ -1,0 +1,22 @@
+# ── CELL 5.3: Export Schedule as CSV ────────────────────────────────────
+
+df_export = pd.DataFrame(SCHEDULE)[[
+    'course', 'instructor', 'day', 'time_label',
+    'duration', 'credits', 'difficulty', 'room_type'
+]].rename(columns={
+    'course'     : 'Course',
+    'instructor' : 'Instructor',
+    'day'        : 'Day',
+    'time_label' : 'Start Time',
+    'duration'   : 'Duration (slots)',
+    'credits'    : 'Credits',
+    'difficulty' : 'Difficulty',
+    'room_type'  : 'Room Type',
+}).sort_values(['Day', 'Start Time'])
+
+csv_path = '/content/optimized_schedule.csv'
+df_export.to_csv(csv_path, index=False)
+print(f'Schedule exported to: {csv_path}')
+print('Download from the Files panel (folder icon) in the left sidebar.')
+print()
+print(df_export.to_string(index=False))
