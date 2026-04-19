@@ -1,0 +1,32 @@
+import subprocess, sys
+
+def install(pkg):
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', pkg, '-q'])
+
+packages = ['ortools', 'plotly', 'pandas', 'tabulate', 'kaleido']
+
+print('Installing packages...')
+for p in packages:
+    install(p)
+    print(f'  OK: {p}')
+
+print('\nAll packages installed successfully!')
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+import numpy as np
+import random
+import warnings
+from collections import defaultdict
+from IPython.display import display, HTML
+warnings.filterwarnings('ignore')
+
+try:
+    from ortools.sat.python import cp_model
+    ORTOOLS_AVAILABLE = True
+    print('OR-Tools (CP-SAT) loaded -- full optimization enabled.')
+except ImportError:
+    ORTOOLS_AVAILABLE = False
+    print('OR-Tools not available -- using greedy scheduler.')
+
+print('All imports successful!')
