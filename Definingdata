@@ -1,0 +1,71 @@
+# ── CELL 2.1: Define Your Courses ──────────────────────────────────────
+# Fields per course:
+#   name       : str  -- Course display name
+#   credits    : int  -- Credit hours
+#   hours_week : int  -- Contact hours per week
+#   sessions   : int  -- Number of weekly sessions
+#   difficulty : 1-5  -- Cognitive load (1=easy, 5=very hard)
+#   instructor : str  -- Teacher name
+#   room_type  : str  -- 'lecture', 'lab', 'seminar', 'online'
+
+COURSES = [
+    {
+        'name'      : 'Calculus II',
+        'credits'   : 4,
+        'hours_week': 4,
+        'sessions'  : 2,
+        'difficulty': 5,
+        'instructor': 'Dr. Patel',
+        'room_type' : 'lecture',
+    },
+    {
+        'name'      : 'Intro to Psychology',
+        'credits'   : 3,
+        'hours_week': 3,
+        'sessions'  : 3,
+        'difficulty': 2,
+        'instructor': 'Prof. Garcia',
+        'room_type' : 'lecture',
+    },
+    {
+        'name'      : 'Data Structures',
+        'credits'   : 3,
+        'hours_week': 3,
+        'sessions'  : 2,
+        'difficulty': 4,
+        'instructor': 'Dr. Kim',
+        'room_type' : 'lecture',
+    },
+    {
+        'name'      : 'Physics Lab',
+        'credits'   : 1,
+        'hours_week': 3,
+        'sessions'  : 1,
+        'difficulty': 3,
+        'instructor': 'Dr. Chen',
+        'room_type' : 'lab',
+    },
+    {
+        'name'      : 'Technical Writing',
+        'credits'   : 2,
+        'hours_week': 2,
+        'sessions'  : 2,
+        'difficulty': 2,
+        'instructor': 'Prof. Adams',
+        'room_type' : 'seminar',
+    },
+    {
+        'name'      : 'Linear Algebra',
+        'credits'   : 3,
+        'hours_week': 3,
+        'sessions'  : 2,
+        'difficulty': 4,
+        'instructor': 'Dr. Patel',
+        'room_type' : 'lecture',
+    },
+]
+
+print(f'{len(COURSES)} courses loaded:')
+for c in COURSES:
+    stars = '*' * c['difficulty']
+    print(f"  {c['name']:30s} | {c['credits']} cr | {c['hours_week']}h/wk | Difficulty: {stars}")
