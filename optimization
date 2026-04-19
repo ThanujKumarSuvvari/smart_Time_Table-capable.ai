@@ -1,0 +1,47 @@
+# ── CELL 5.1: Optimization Rationale Report ─────────────────────────────
+
+print('OPTIMIZATION DECISIONS')
+print('=' * 60)
+
+hard_morning = [
+    e for e in SCHEDULE
+    if e['difficulty'] >= 4 and TIME_SLOTS[e['slot_idx']]['hour'] < 12
+]
+if hard_morning:
+    names = ', '.join(sorted(set(e['course'] for e in hard_morning)))
+    print(f'[MORNING RULE] Hard courses placed before noon: {names}')
+
+lunch_idx  = SOFT_PREFERENCES.get('lunch_slot_index', 4)
+lunch_used = [e for e in SCHEDULE if e['slot_idx'] == lunch_idx]
+if not lunch_used:
+    print('[LUNCH] 12:00 PM protected on all days.')
+else:
+    used_on = ', '.join(e['day'] for e in lunch_used)
+    print(f'[LUNCH] Could not protect 12:00 PM on: {used_on}')
+
+slot_instr = defaultdict(list)
+for e in SCHEDULE:
+    for k in range(e['duration']):
+        slot_instr[(e['day_idx'], e['slot_idx'] + k)].append(e['instructor'])
+
+conflicts_found = [
+    (k, v) for k, v in slot_instr.items() if len(v) != len(set(v))
+]
+if conflicts_found:
+    print(f'[CONFLICT] {len(conflicts_found)} instructor double-booking(s) detected!')
+else:
+    print('[OK] No instructor conflicts.')
+
+daily_hours = defaultdict(int)
+for e in SCHEDULE:
+    daily_hours[e['day']] += e['duration']
+
+print('\nDaily load distribution:')
+for day in DAYS:
+    bar = '#' * daily_hours[day]
+    print(f'  {day:12s} {daily_hours[day]}h  {bar}')
+
+variance = max(daily_hours.values()) - min(daily_hours.values())
+balance  = 'Well-balanced' if variance <= 2 else 'Uneven -- consider adjustments'
+print(f'\nLoad variance: {variance}h  ({balance})')
+print('=' * 60)
