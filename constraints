@@ -1,0 +1,22 @@
+# ── CELL 2.3: Hard Constraints ──────────────────────────────────────────
+# These CANNOT be violated. Scheduler flags an error if unsatisfiable.
+#
+# day_index : 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri
+# slot_index: 0=8am, 1=9am, ..., 9=5pm
+
+HARD_CONSTRAINTS = {
+    'instructor_blocked': {
+        'Dr. Patel'  : [(0, 0), (0, 1), (4, 8), (4, 9)],
+        'Prof. Garcia': [(2, 5), (2, 6)],
+    },
+    'student_blocked': [
+        (4, 7), (4, 8), (4, 9),
+    ],
+    'max_consecutive_hours': 3,
+    'no_instructor_overlap': True,
+}
+
+print('Hard Constraints loaded:')
+for k, v in HARD_CONSTRAINTS.items():
+    print(f'  {k}: {v}')
+  
