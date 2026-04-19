@@ -1,0 +1,142 @@
+# ── CELL 3.1: Scheduling Engine ─────────────────────────────────────────
+
+def validate_inputs(courses, days, slots, hard, profile):
+    errors = []
+    total_sessions = sum(c['sessions'] for c in courses)
+    available_slots = len(days) * len(slots)
+    if total_sessions > available_slots:
+        errors.append(
+            f'Not enough slots! {total_sessions} sessions needed '
+            f'but only {available_slots} available.'
+        )
+    total_weekly = sum(c['hours_week'] for c in courses)
+    if total_weekly > profile['max_weekly_hours']:
+        errors.append(
+            f'Total contact hours ({total_weekly}h) exceeds learner '
+            f"max ({profile['max_weekly_hours']}h/week)."
+        )
+    return errors
+
+
+def greedy_scheduler(courses, days, slots, hard, soft, profile):
+    schedule         = []
+    schedule_warnings = []
+    used_slots       = {}
+    instructor_slots = {}
+
+    student_blocked = set(map(tuple, hard.get('student_blocked', [])))
+    instr_blocked   = hard.get('instructor_blocked', {})
+
+    sorted_courses = sorted(courses, key=lambda c: -c['difficulty'])
+
+    def session_dur(course):
+        return max(1, course['hours_week'] // course['sessions'])
+
+    def score_slot(d_i, s_i, course):
+        score    = 0
+        day_name = days[d_i]
+        hour     = slots[s_i]['hour']
+        if soft.get('morning_preference_for_hard') and course['difficulty'] >= 4:
+            if hour < soft.get('morning_cutoff_hour', 12):
+                score += 3
+        preferred_days = soft.get('prefer_hard_courses_on', [])
+        if course['difficulty'] >= 4 and day_name in preferred_days:
+            score += 2
+        if soft.get('protect_lunch_break') and s_i == soft.get('lunch_slot_index', 4):
+            score -= 5
+        if soft.get('balance_daily_load'):
+            day_load = sum(1 for (d, s) in used_slots if d == d_i)
+            score -= day_load * 0.5
+        return score
+
+    for course in sorted_courses:
+        n_sessions = course['sessions']
+        dur        = session_dur(course)
+        instr      = course['instructor']
+        i_block    = set(map(tuple, instr_blocked.get(instr, [])))
+        candidates = []
+
+        for d_i in range(len(days)):
+            for s_i in range(len(slots)):
+                fits = all(
+                    (d_i, s_i + k) not in used_slots
+                    and (d_i, s_i + k) not in student_blocked
+                    and (d_i, s_i + k) not in i_block
+                    and s_i + k < len(slots)
+                    for k in range(dur)
+                )
+                instr_free = all(
+                    instructor_slots.get((instr, d_i, s_i + k)) is None
+                    for k in range(dur)
+                )
+                if fits and instr_free:
+                    sc = score_slot(d_i, s_i, course)
+                    candidates.append((sc, d_i, s_i))
+
+        candidates.sort(key=lambda x: (-x[0], random.random()))
+        min_gap = soft.get('min_gap_between_same_course_sessions', 1)
+        placed  = 0
+
+        for (sc, d_i, s_i) in candidates:
+            if placed >= n_sessions:
+                break
+            prior = [(a['day_idx'], a['slot_idx'])
+                     for a in schedule if a['course'] == course['name']]
+            too_close = any(
+                d_i == pd_ and abs(s_i - ps_) < min_gap
+                for (pd_, ps_) in prior
+            )
+            if too_close:
+                continue
+            for k in range(dur):
+                used_slots[(d_i, s_i + k)]             = course['name']
+                instructor_slots[(instr, d_i, s_i + k)] = True
+            schedule.append({
+                'course'     : course['name'],
+                'instructor' : instr,
+                'credits'    : course['credits'],
+                'difficulty' : course['difficulty'],
+                'room_type'  : course['room_type'],
+                'day'        : days[d_i],
+                'day_idx'    : d_i,
+                'slot_idx'   : s_i,
+                'time_label' : slots[s_i]['label'],
+                'duration'   : dur,
+            })
+            placed += 1
+
+        if placed < n_sessions:
+            schedule_warnings.append(
+                f"Only {placed}/{n_sessions} sessions placed for '{course['name']}'"
+            )
+
+    return schedule, schedule_warnings
+
+
+print('Scheduler engine ready.')
+# ── CELL 3.2: Validate Inputs & Run Generator ───────────────────────────
+
+print('Validating inputs...')
+errors = validate_inputs(COURSES, DAYS, TIME_SLOTS, HARD_CONSTRAINTS, LEARNER_PROFILE)
+
+if errors:
+    print('VALIDATION ERRORS -- fix before continuing:')
+    for e in errors:
+        print(f'  ERROR: {e}')
+else:
+    print('  Inputs valid!')
+    random.seed(42)
+    SCHEDULE, WARNINGS = greedy_scheduler(
+        COURSES, DAYS, TIME_SLOTS,
+        HARD_CONSTRAINTS, SOFT_PREFERENCES, LEARNER_PROFILE
+    )
+    needed = sum(c['sessions'] for c in COURSES)
+    placed = len(SCHEDULE)
+    print(f'  Sessions placed: {placed} / {needed}')
+    if WARNINGS:
+        print('Scheduling Warnings:')
+        for w in WARNINGS:
+            print(f'  WARNING: {w}')
+    else:
+        print('  All sessions placed -- no conflicts!')
+    print('Schedule generation complete!')
