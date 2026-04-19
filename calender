@@ -1,0 +1,184 @@
+# ── CELL 4.1: Weekly Calendar Grid ─────────────────────────────────────
+
+DIFF_COLORS = {
+    1: '#A8D5BA',
+    2: '#A8C8E8',
+    3: '#FFD580',
+    4: '#FFB347',
+    5: '#FF6B6B',
+}
+
+ROOM_ICONS = {
+    'lecture': '[LEC]',
+    'lab'    : '[LAB]',
+    'seminar': '[SEM]',
+    'online' : '[ONL]',
+}
+
+n_days  = len(DAYS)
+n_slots = len(TIME_SLOTS)
+
+fig_cal = go.Figure()
+
+for d_i in range(n_days):
+    for s_i in range(n_slots):
+        fig_cal.add_shape(
+            type='rect',
+            x0=d_i, x1=d_i+1, y0=s_i, y1=s_i+1,
+            fillcolor='#F7F9FC',
+            line=dict(color='#D0D7E0', width=0.8),
+        )
+
+for entry in SCHEDULE:
+    d_i   = entry['day_idx']
+    s_i   = entry['slot_idx']
+    dur   = entry['duration']
+    diff  = entry['difficulty']
+    icon  = ROOM_ICONS.get(entry['room_type'], '')
+    color = DIFF_COLORS.get(diff, '#CCCCCC')
+    fig_cal.add_shape(
+        type='rect',
+        x0=d_i+0.05, x1=d_i+0.95,
+        y0=s_i+0.05, y1=s_i+dur-0.05,
+        fillcolor=color,
+        line=dict(color='white', width=2),
+    )
+    label = f"{icon} {entry['course']}<br>{entry['instructor']}"
+    fig_cal.add_annotation(
+        x=d_i+0.5, y=s_i+dur/2,
+        text=label,
+        showarrow=False,
+        font=dict(size=10, color='#1A1A2E'),
+        align='center',
+        xanchor='center', yanchor='middle',
+    )
+
+fig_cal.update_layout(
+    title=dict(text='Weekly Class Schedule', font=dict(size=20), x=0.5),
+    xaxis=dict(
+        tickvals=[i+0.5 for i in range(n_days)],
+        ticktext=DAYS,
+        tickfont=dict(size=13),
+        showgrid=False, zeroline=False,
+        range=[0, n_days],
+    ),
+    yaxis=dict(
+        tickvals=[i+0.5 for i in range(n_slots)],
+        ticktext=SLOT_LABELS,
+        tickfont=dict(size=11),
+        showgrid=False, zeroline=False,
+        range=[n_slots, 0],
+        autorange=False,
+    ),
+    height=620, width=900,
+    plot_bgcolor='white', paper_bgcolor='white',
+    margin=dict(l=90, r=20, t=60, b=40),
+)
+
+fig_cal.show()
+
+print('Color legend: green=easy | blue=light | yellow=medium | orange=hard | red=very hard')
+# ── CELL 4.2: Schedule Summary Table ────────────────────────────────────
+
+rows = []
+for c in COURSES:
+    placed_e = [e for e in SCHEDULE if e['course'] == c['name']]
+    times    = ', '.join(
+        f"{e['day'][:3]} {e['time_label']}" for e in placed_e
+    )
+    study_hrs = c['credits'] * 2
+    rows.append({
+        'Course'         : c['name'],
+        'Credits'        : c['credits'],
+        'Contact h/wk'   : c['hours_week'],
+        'Study h/wk'     : study_hrs,
+        'Difficulty'     : c['difficulty'],
+        'Sessions'       : f"{len(placed_e)}/{c['sessions']}",
+        'Scheduled Times': times if times else 'NOT PLACED',
+    })
+
+df = pd.DataFrame(rows)
+
+total_credits = df['Credits'].sum()
+total_contact = df['Contact h/wk'].sum()
+total_study   = df['Study h/wk'].sum()
+total_commit  = total_contact + total_study
+
+print('Schedule Summary')
+print('=' * 80)
+print(df.to_string(index=False))
+print('=' * 80)
+print(f'Total Credits       : {total_credits}')
+print(f'Contact Hours/Week  : {total_contact}h')
+print(f'Est. Study Hours/Wk : {total_study}h')
+print(f'Total Weekly Commit : ~{total_commit}h')
+status = 'Manageable load' if total_commit <= 40 else 'WARNING: Consider dropping a course'
+print(f'Recommendation      : {status}')
+# ── CELL 4.3: Cognitive Load Heatmap ────────────────────────────────────
+
+heat_matrix = np.zeros((len(TIME_SLOTS), len(DAYS)))
+
+for entry in SCHEDULE:
+    d_i  = entry['day_idx']
+    s_i  = entry['slot_idx']
+    dur  = entry['duration']
+    diff = entry['difficulty']
+    for k in range(dur):
+        if s_i + k < len(TIME_SLOTS):
+            heat_matrix[s_i + k][d_i] += diff
+
+fig_heat = go.Figure(data=go.Heatmap(
+    z=heat_matrix,
+    x=DAYS,
+    y=SLOT_LABELS,
+    colorscale=[
+        [0.0, '#F0FFF0'],
+        [0.3, '#FFE066'],
+        [0.6, '#FF9A3C'],
+        [1.0, '#D7263D'],
+    ],
+    showscale=True,
+    colorbar=dict(title='Load Score'),
+    hovertemplate='Day: %{x}<br>Time: %{y}<br>Score: %{z}<extra></extra>',
+))
+
+fig_heat.update_layout(
+    title=dict(text='Cognitive Load Heatmap', font=dict(size=18), x=0.5),
+    xaxis=dict(title='Day of Week', tickfont=dict(size=12)),
+    yaxis=dict(title='Time Slot', autorange='reversed', tickfont=dict(size=11)),
+    height=480, width=700,
+    margin=dict(l=90, r=80, t=60, b=40),
+)
+
+fig_heat.show()
+print('Green=free | Yellow=moderate | Orange=high | Red=peak demand')
+# ── CELL 4.4: Instructor Load Bar Chart ─────────────────────────────────
+
+instr_day_hours = defaultdict(int)
+for entry in SCHEDULE:
+    instr_day_hours[(entry['instructor'], entry['day'])] += entry['duration']
+
+instructors  = sorted(set(e['instructor'] for e in SCHEDULE))
+colors_list  = px.colors.qualitative.Pastel
+fig_instr    = go.Figure()
+
+for i, instr in enumerate(instructors):
+    hours_per_day = [instr_day_hours[(instr, d)] for d in DAYS]
+    fig_instr.add_trace(go.Bar(
+        name=instr,
+        x=DAYS,
+        y=hours_per_day,
+        marker_color=colors_list[i % len(colors_list)],
+    ))
+
+fig_instr.update_layout(
+    barmode='group',
+    title=dict(text='Instructor Teaching Hours by Day', font=dict(size=18), x=0.5),
+    xaxis=dict(title='Day'),
+    yaxis=dict(title='Hours'),
+    height=420, width=750,
+    plot_bgcolor='white', paper_bgcolor='white',
+    legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
+)
+
+fig_instr.show()
