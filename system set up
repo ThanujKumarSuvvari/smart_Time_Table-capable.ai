@@ -1,0 +1,119 @@
+# app.py
+
+import os
+import datetime
+import pandas as pd
+import streamlit as st
+
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+
+SCOPES = ["[googleapis.com](https://www.googleapis.com/auth/calendar)"]
+
+# --------------------------------------------------------
+# Helper Functions
+# --------------------------------------------------------
+def authenticate_google():
+    """Handle OAuth 2.0 flow and token storage"""
+    creds = None
+    if os.path.exists("token.json"):
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
+    return creds
+
+
+def create_event(service, summary, start_time, end_time, description=""):
+    event = {
+        "summary": summary,
+        "description": description,
+        "start": {"dateTime": start_time.isoformat(), "timeZone": "Asia/Kolkata"},
+        "end": {"dateTime": end_time.isoformat(), "timeZone": "Asia/Kolkata"},
+    }
+    service.events().insert(calendarId="primary", body=event).execute()
+
+
+def get_upcoming_events(service, max_results=10):
+    now = datetime.datetime.utcnow().isoformat() + "Z"
+    events_result = (
+        service.events()
+        .list(calendarId="primary", timeMin=now, maxResults=max_results,
+              singleEvents=True, orderBy="startTime")
+        .execute()
+    )
+    return events_result.get("items", [])
+
+
+# --------------------------------------------------------
+# Streamlit UI
+# --------------------------------------------------------
+st.title("🎓 Smart Timetable Assistant (Week 1–2 Prototype)")
+st.write("Manage classes, assignments, and your Google Calendar.")
+
+# Authenticate
+creds = authenticate_google()
+service = build("calendar", "v3", credentials=creds)
+
+# --------------------------------------------------------
+# Section 1: Google Calendar Event Creator
+# --------------------------------------------------------
+st.header("📅 Create a Calendar Event")
+
+with st.form("create_event"):
+    summary = st.text_input("Event Title")
+    description = st.text_area("Description")
+    start_date = st.date_input("Start Date")
+    start_time = st.time_input("Start Time", datetime.time(9, 0))
+    end_date = st.date_input("End Date")
+    end_time = st.time_input("End Time", datetime.time(10, 0))
+    submit_event = st.form_submit_button("Add Event")
+
+if submit_event:
+    start_dt = datetime.datetime.combine(start_date, start_time)
+    end_dt = datetime.datetime.combine(end_date, end_time)
+    create_event(service, summary, start_dt, end_dt, description)
+    st.success("✅ Event added to Google Calendar!")
+
+# --------------------------------------------------------
+# Section 2: Show Upcoming Events
+# --------------------------------------------------------
+st.header("🔔 Upcoming Events")
+events = get_upcoming_events(service)
+if not events:
+    st.info("No upcoming events found.")
+else:
+    for event in events:
+        start = event["start"].get("dateTime", event["start"].get("date"))
+        st.write(f"• **{event['summary']}** — {start}")
+
+# --------------------------------------------------------
+# Section 3: Local Academic Schedule
+# --------------------------------------------------------
+st.header("📚 Class Schedule Tracker")
+
+if not os.path.exists("schedule.csv"):
+    pd.DataFrame(columns=["Course", "Day", "Time", "Type"]).to_csv("schedule.csv", index=False)
+
+df = pd.read_csv("schedule.csv")
+
+with st.form("add_class"):
+    course = st.text_input("Course Name")
+    day = st.selectbox("Day", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"])
+    time = st.text_input("Time (HH:MM)")
+    type_ = st.selectbox("Type", ["Lecture", "Lab", "Tutorial"])
+    add_class = st.form_submit_button("Add Class")
+
+if add_class and course:
+    new_row = {"Course": course, "Day": day, "Time": time, "Type": type_}
+    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    df.to_csv("schedule.csv", index=False)
+    st.success(f"Added class: {course} ({type_}) on {day} at {time}")
+
+st.dataframe(df)
