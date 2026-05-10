@@ -1,0 +1,180 @@
+import os
+import datetime
+import pandas as pd
+import streamlit as st
+
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+from openai import OpenAI
+
+# --------------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------------
+SCOPES = ["[googleapis.com](https://www.googleapis.com/auth/calendar)"]
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # ensure key is in environment
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# --------------------------------------------------------
+# HELPER FUNCTIONS
+# --------------------------------------------------------
+def authenticate_google():
+    creds = None
+    if os.path.exists("token.json"):
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
+    return creds
+
+
+def create_event(service, summary, start_time, end_time, description=""):
+    event = {
+        "summary": summary,
+        "description": description,
+        "start": {"dateTime": start_time.isoformat(), "timeZone": "Asia/Kolkata"},
+        "end": {"dateTime": end_time.isoformat(), "timeZone": "Asia/Kolkata"},
+    }
+    service.events().insert(calendarId="primary", body=event).execute()
+
+
+def get_upcoming_events(service, max_results=10):
+    now = datetime.datetime.utcnow().isoformat() + "Z"
+    events_result = (
+        service.events()
+        .list(calendarId="primary", timeMin=now, maxResults=max_results,
+              singleEvents=True, orderBy="startTime")
+        .execute()
+    )
+    return events_result.get("items", [])
+
+
+def detect_conflicts(service, start_time, end_time):
+    events = get_upcoming_events(service, max_results=50)
+    conflicts = []
+    for event in events:
+        if "dateTime" in event["start"]:
+            e_start = datetime.datetime.fromisoformat(event["start"]["dateTime"].replace("Z", "+00:00"))
+            e_end = datetime.datetime.fromisoformat(event["end"]["dateTime"].replace("Z", "+00:00"))
+            if (start_time < e_end) and (end_time > e_start):
+                conflicts.append(event["summary"])
+    return conflicts
+
+
+def parse_natural_language(command):
+    prompt = f"""
+    Interpret this scheduling request and return as JSON:
+    Example input: "Schedule AI class on Tuesday 10 AM to 11 AM"
+    Example output:
+
+    {{"summary": "AI class", "start_date": "2026-05-12", "start_time": "10:00", "end_time": "11:00"}}
+
+    Now interpret: "{command}"
+    """
+    completion = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "system", "content": "Return JSON only"},
+                  {"role": "user", "content": prompt}],
+        temperature=0
+    )
+    try:
+        import json
+        response = completion.choices[0].message.content.strip()
+        data = json.loads(response)
+        return data
+    except Exception:
+        return None
+
+
+# --------------------------------------------------------
+# STREAMLIT UI
+# --------------------------------------------------------
+st.title("🎓 Smart Timetable Assistant (Week 3–4 Update)")
+st.write("Natural language scheduling, conflict detection, and assignment tracking.")
+
+creds = authenticate_google()
+service = build("calendar", "v3", credentials=creds)
+
+# --------------------------------------------------------
+# Section 1: Natural Language Scheduling
+# --------------------------------------------------------
+st.header("💬 Natural Language Scheduling")
+
+user_command = st.text_input("Type scheduling request (e.g. 'Add ML lecture tomorrow 3–4 PM')")
+if st.button("Process Command"):
+    details = parse_natural_language(user_command)
+    if details:
+        start_dt = datetime.datetime.fromisoformat(details["start_date"] + "T" + details["start_time"])
+        end_raw = details.get("end_time", None)
+        if end_raw:
+            end_dt = datetime.datetime.fromisoformat(details["start_date"] + "T" + end_raw)
+        else:
+            end_dt = start_dt + datetime.timedelta(hours=1)
+
+        conflicts = detect_conflicts(service, start_dt, end_dt)
+        if conflicts:
+            st.warning(f"⚠️ Conflict with {', '.join(conflicts)}")
+        else:
+            create_event(service, details["summary"], start_dt, end_dt)
+            st.success(f"✅ Added '{details['summary']}' on {details['start_date']} at {details['start_time']}")
+    else:
+        st.error("❌ Could not interpret your command. Try rephrasing.")
+
+
+# --------------------------------------------------------
+# Section 2: Conflict Detection (Manual)
+# --------------------------------------------------------
+st.header("🕒 Check for Manual Scheduling Conflicts")
+
+with st.form("check_conflict"):
+    start = st.date_input("Date")
+    time1 = st.time_input("Start Time", datetime.time(9, 0))
+    time2 = st.time_input("End Time", datetime.time(10, 0))
+    check = st.form_submit_button("Check Conflicts")
+
+if check:
+    start_dt = datetime.datetime.combine(start, time1)
+    end_dt = datetime.datetime.combine(start, time2)
+    conflicts = detect_conflicts(service, start_dt, end_dt)
+    if conflicts:
+        st.error(f"⚠️ Conflicts with: {', '.join(conflicts)}")
+    else:
+        st.success("✅ No conflicts found for that time slot.")
+
+
+# --------------------------------------------------------
+# Section 3: Assignment Tracker
+# --------------------------------------------------------
+st.header("📘 Assignment Deadline Tracker")
+
+if not os.path.exists("assignments.csv"):
+    pd.DataFrame(columns=["Title", "Due Date", "Status"]).to_csv("assignments.csv", index=False)
+
+df_assign = pd.read_csv("assignments.csv")
+
+with st.form("add_assignment"):
+    title = st.text_input("Assignment Title")
+    due = st.date_input("Due Date")
+    add_btn = st.form_submit_button("Add Assignment")
+
+if add_btn and title:
+    new_row = {"Title": title, "Due Date": str(due), "Status": "Pending"}
+    df_assign = pd.concat([df_assign, pd.DataFrame([new_row])], ignore_index=True)
+    df_assign.to_csv("assignments.csv", index=False)
+    st.success(f"📘 Added assignment: {title} (Due: {due})")
+
+st.dataframe(df_assign)
+
+# Placeholder reminder logic
+today = datetime.date.today()
+upcoming = df_assign[pd.to_datetime(df_assign["Due Date"]).dt.date <= today + datetime.timedelta(days=2)]
+if not upcoming.empty:
+    st.warning("⏰ Upcoming deadlines within 2 days:")
+    for _, row in upcoming.iterrows():
+        st.write(f"- {row['Title']} → due {row['Due Date']}")
