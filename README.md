@@ -36,3 +36,29 @@ pip install streamlit google-auth google-auth-oauthlib google-auth-httplib2 goog
 Created .env file to store sensitive data securely
 Ensured secrets are not pushed to GitHub
 
+# 🎓 Smart Timetable Assistant — Week 3–4
+
+This version extends the Week 1–2 prototype with intelligent scheduling logic, conflict detection, and assignment tracking.
+
+## 🔍 Overview
+
+**Goal:** Transform the simple calendar manager into a conversational scheduling assistant capable of:
+- Interpreting natural‑language scheduling commands
+- Detecting event conflicts in your Google Calendar
+- Tracking assignment deadlines and showing upcoming alerts
+
+## 🧠 New Features (Week 3–4)
+
+| Feature | Description |
+|----------|--------------|
+| Natural Language Scheduling | Create events using everyday text like “add AI class Tuesday 10‑11am”. |
+| Conflict Detection | Checks overlapping events before creating new ones. |
+| Assignment Tracker | Add and view assignment deadlines stored locally. |
+| Basic Reminders | Warns when due dates approach within 2 days. |
+
+## ⚙️ Setup Instructions
+
+1. **Clone Repository**
+   ```bash
+   git clone [github.com](https://github.com/)<your‑username>/smart‑timetable‑assistant.git
+   cd smart‑timetable‑assistant
