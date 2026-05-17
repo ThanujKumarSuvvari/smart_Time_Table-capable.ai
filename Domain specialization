@@ -1,0 +1,199 @@
+import os
+import json
+import datetime
+import pandas as pd
+import streamlit as st
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+from openai import OpenAI
+
+# --------------------------------------------------------
+# CONFIG
+# --------------------------------------------------------
+SCOPES = ["[googleapis.com](https://www.googleapis.com/auth/calendar)"]
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+# --------------------------------------------------------
+# GOOGLE AUTH AND CALENDAR OPS
+# --------------------------------------------------------
+def authenticate_google():
+    creds = None
+    if os.path.exists("token.json"):
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
+    return creds
+
+
+def create_event(service, summary, start_time, end_time, description=""):
+    """Insert event in Google Calendar"""
+    event = {
+        "summary": summary,
+        "description": description,
+        "start": {"dateTime": start_time.isoformat(), "timeZone": "Asia/Kolkata"},
+        "end": {"dateTime": end_time.isoformat(), "timeZone": "Asia/Kolkata"},
+    }
+    service.events().insert(calendarId="primary", body=event).execute()
+
+
+def get_upcoming_events(service, max_results=30):
+    now = datetime.datetime.utcnow().isoformat() + "Z"
+    results = (
+        service.events()
+        .list(calendarId="primary", timeMin=now, maxResults=max_results,
+              singleEvents=True, orderBy="startTime")
+        .execute()
+    )
+    return results.get("items", [])
+
+
+def detect_conflicts(service, start_time, end_time):
+    events = get_upcoming_events(service, max_results=50)
+    conflicts = []
+    for e in events:
+        if "dateTime" in e["start"]:
+            e_start = datetime.datetime.fromisoformat(e["start"]["dateTime"].replace("Z", "+00:00"))
+            e_end = datetime.datetime.fromisoformat(e["end"]["dateTime"].replace("Z", "+00:00"))
+            if (start_time < e_end) and (end_time > e_start):
+                conflicts.append(e["summary"])
+    return conflicts
+
+
+# --------------------------------------------------------
+# AI HELPERS
+# --------------------------------------------------------
+def parse_command_AI(command):
+    """Interpret natural‑language scheduling command"""
+    prompt = f"""
+    You are a calendar assistant. Convert the following text into structured JSON:
+    "{command}"
+
+    Return keys: summary, start_date (YYYY-MM-DD), start_time (HH:MM, 24h),
+    end_time (HH:MM, 24h if available).
+    """
+    resp = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0
+    )
+    try:
+        data = json.loads(resp.choices[0].message.content)
+    except json.JSONDecodeError:
+        return None
+    return data
+
+
+def suggest_alternative_slot(service, start_dt, end_dt):
+    """Suggest next available slot within 3 hours window"""
+    for i in range(1, 4):
+        alt_start = start_dt + datetime.timedelta(hours=i)
+        alt_end = end_dt + datetime.timedelta(hours=i)
+        if not detect_conflicts(service, alt_start, alt_end):
+            return alt_start, alt_end
+    return None, None
+
+
+def recommend_study_blocks(service):
+    """Recommend 2h study block for tomorrow if free between 4–8 PM"""
+    tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+    base_start = datetime.datetime.combine(tomorrow, datetime.time(16, 0))
+    end = base_start + datetime.timedelta(hours=2)
+    if not detect_conflicts(service, base_start, end):
+        return base_start, end
+    return None, None
+
+
+# --------------------------------------------------------
+# UI
+# --------------------------------------------------------
+st.set_page_config(page_title="Smart Timetable Assistant", layout="centered")
+st.title("🎯 Smart Timetable Assistant (Weeks 4 – 5)")
+st.caption("Enhanced AI scheduling · Conflict suggestions · Study‑time recommendations")
+
+creds = authenticate_google()
+service = build("calendar", "v3", credentials=creds)
+
+# --------------------------------------------------------
+# Section 1 — Conversational Scheduling
+# --------------------------------------------------------
+st.header("💬 AI‑Based Scheduling Command")
+
+command = st.text_input("Type a scheduling request:")
+if st.button("Run Command"):
+    data = parse_command_AI(command)
+    if not data:
+        st.error("Could not parse your instruction.")
+    else:
+        sdt = datetime.datetime.fromisoformat(f"{data['start_date']}T{data['start_time']}")
+        edt = (
+            datetime.datetime.fromisoformat(f"{data['start_date']}T{data.get('end_time','')}") 
+            if data.get("end_time") else sdt + datetime.timedelta(hours=1)
+        )
+        conflicts = detect_conflicts(service, sdt, edt)
+
+        if conflicts:
+            st.warning(f"Time slot conflicts with: {', '.join(conflicts)}")
+            alt_s, alt_e = suggest_alternative_slot(service, sdt, edt)
+            if alt_s:
+                if st.button(f"✅ Schedule Instead at {alt_s.strftime('%I:%M %p')}"):
+                    create_event(service, data['summary'], alt_s, alt_e)
+                    st.success(f"Scheduled '{data['summary']}' at suggested time.")
+        else:
+            create_event(service, data['summary'], sdt, edt)
+            st.success(f"✅ Event '{data['summary']}' scheduled successfully.")
+
+# --------------------------------------------------------
+# Section 2 — Study Recommendations
+# --------------------------------------------------------
+st.header("📈 Smart Study‑Time Recommendation")
+
+if st.button("Suggest Study Block for Tomorrow"):
+    s, e = recommend_study_blocks(service)
+    if s:
+        st.info(f"Suggested Study Slot: {s.strftime('%b %d %I:%M %p')} – {e.strftime('%I:%M %p')}")
+        if st.button("Add to Calendar"):
+            create_event(service, "Study Block", s, e, "AI‑recommended study time")
+            st.success("Study block added!")
+    else:
+        st.warning("No free study slot found tomorrow 4‑8 PM.")
+
+# --------------------------------------------------------
+# Section 3 — Improved Assignment Tracker
+# --------------------------------------------------------
+st.header("📚 Assignment Dashboard")
+
+if not os.path.exists("assignments.csv"):
+    pd.DataFrame(columns=["Title", "Due Date", "Priority", "Status"]).to_csv("assignments.csv", index=False)
+
+df = pd.read_csv("assignments.csv")
+
+with st.form("assign_form"):
+    t = st.text_input("Assignment Title")
+    d = st.date_input("Due Date")
+    p = st.selectbox("Priority", ["High", "Medium", "Low"])
+    add_btn = st.form_submit_button("Add Assignment")
+if add_btn and t:
+    new_row = {"Title": t, "Due Date": str(d), "Priority": p, "Status": "Pending"}
+    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    df.to_csv("assignments.csv", index=False)
+    st.success("Assignment added.")
+
+st.dataframe(df, use_container_width=True)
+today = datetime.date.today()
+upcoming = df[pd.to_datetime(df["Due Date"]).dt.date <= today + datetime.timedelta(days=2)]
+if not upcoming.empty:
+    st.warning("⏰ Assignments due soon:")
+    for _, row in upcoming.iterrows():
+        st.write(f"- **{row['Title']}** → {row['Due Date']} ({row['Priority']})")
+
+st.caption("Data saved locally to assignments.csv")
