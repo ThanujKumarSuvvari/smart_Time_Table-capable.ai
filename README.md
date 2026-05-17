@@ -62,3 +62,47 @@ This version extends the Week 1–2 prototype with intelligent scheduling logi
    ```bash
    git clone [github.com](https://github.com/)<your‑username>/smart‑timetable‑assistant.git
    cd smart‑timetable‑assistant
+
+   # 🎓 Smart Timetable Assistant AI Agent
+
+An AI-powered academic time‑management assistant developed for the **Capabl Smart Timetable Project (Weeks 1–8)**.  
+This version implements **Weeks 4 – 5** features: conversational scheduling, conflict suggestions, and intelligent study‑time recommendations.
+
+---
+
+## 🚀 Features (Week 4 – 5)
+
+### ✅ Conversational Scheduling
+- Natural‑language event creation (uses OpenAI GPT model)
+- Automatic conflict detection with alternate slot suggestions
+
+### 🕑 Intelligent Study Planner
+- Detects free 2‑hour study blocks for the next day
+- Adds AI‑recommended “Study Block” events to your Google Calendar
+
+### 🗂️ Assignment Tracker
+- Add, view, and prioritize assignments locally (`assignments.csv`)
+- Deadline reminders for tasks due within 2 days
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Tools |
+|-------|-------|
+| Frontend | Streamlit (Python web app) |
+| Backend | Python 3.10+, LangChain concepts (GPT API logic) |
+| Calendar | Google Calendar API via `googleapiclient` |
+| NLP Model | OpenAI GPT‑3.5‑Turbo |
+| Storage | CSV‑based local persistence |
+| Deployment | Streamlit Cloud (recommended) |
+
+---
+
+## ⚙️ Setup Instructions
+
+1. **Clone Repository**
+   ```bash
+   git clone [github.com](https://github.com/)<your-username>/smart-timetable-assistant.git
+   cd smart-timetable-assistant
+
