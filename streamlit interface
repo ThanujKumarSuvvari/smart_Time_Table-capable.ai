@@ -1,0 +1,101 @@
+# --------------------------------------------------------
+# Section 4 — Analytics Dashboard (Time Management Insights)
+# --------------------------------------------------------
+st.header("📊 Scheduling Analytics Dashboard")
+
+def compute_analytics(service):
+    events = get_upcoming_events(service, max_results=100)
+    summary_data = {}
+    total_hours = 0
+    for e in events:
+        if "dateTime" in e["start"] and "dateTime" in e["end"]:
+            start = datetime.datetime.fromisoformat(e["start"]["dateTime"].replace("Z", "+00:00"))
+            end = datetime.datetime.fromisoformat(e["end"]["dateTime"].replace("Z", "+00:00"))
+            dur = (end - start).seconds / 3600
+            cat = "Study" if "study" in e["summary"].lower() else "Classes" if "class" in e["summary"].lower() else "Others"
+            summary_data[cat] = summary_data.get(cat, 0) + dur
+            total_hours += dur
+    return summary_data, total_hours
+
+if st.button("📈 Generate Analytics"):
+    summary_data, total_hours = compute_analytics(service)
+    if total_hours > 0:
+        st.success(f"Total Scheduled Time: {total_hours:.1f} hours upcoming")
+        df_summary = pd.DataFrame(list(summary_data.items()), columns=["Category", "Hours"])
+        st.bar_chart(df_summary.set_index("Category"))
+    else:
+        st.info("No future events found in your calendar.")
+
+# --------------------------------------------------------
+# Section 5 — Intelligent Rescheduling
+# --------------------------------------------------------
+st.header("🔁 Intelligent Rescheduling Assistant")
+
+event_name = st.text_input("Event to Reschedule (exact name from calendar)")
+shift_days = st.number_input("Shift by days (+ve to postpone)", value=1, step=1)
+if st.button("Reschedule Event"):
+    events = get_upcoming_events(service, max_results=50)
+    found = False
+    for e in events:
+        if e["summary"].lower() == event_name.lower() and "dateTime" in e["start"]:
+            found = True
+            start = datetime.datetime.fromisoformat(e["start"]["dateTime"].replace("Z", "+00:00")) + datetime.timedelta(days=int(shift_days))
+            end = datetime.datetime.fromisoformat(e["end"]["dateTime"].replace("Z", "+00:00")) + datetime.timedelta(days=int(shift_days))
+            service.events().update(
+                calendarId="primary",
+                eventId=e["id"],
+                body={**e, "start": {"dateTime": start.isoformat(), "timeZone": "Asia/Kolkata"},
+                         "end": {"dateTime": end.isoformat(), "timeZone": "Asia/Kolkata"}},
+            ).execute()
+            st.success(f"✅ Rescheduled '{event_name}' by {shift_days} day(s).")
+            break
+    if not found:
+        st.error("Event not found. Please check spelling or event existence.")
+
+# --------------------------------------------------------
+# Section 6 — Export Schedule & Assignments
+# --------------------------------------------------------
+st.header("📤 Export Functionality")
+
+def export_to_csv():
+    events = get_upcoming_events(service, max_results=50)
+    rows = []
+    for e in events:
+        if "dateTime" in e["start"]:
+            start = e["start"]["dateTime"]
+            end = e["end"]["dateTime"]
+            rows.append([e["summary"], start, end])
+    df = pd.DataFrame(rows, columns=["Event", "Start", "End"])
+    df.to_csv("calendar_export.csv", index=False)
+    return df
+
+if st.button("Export Calendar Events"):
+    df_export = export_to_csv()
+    st.dataframe(df_export)
+    st.success("Exported upcoming events → calendar_export.csv")
+
+if st.button("Export Assignment Tracker"):
+    if os.path.exists("assignments.csv"):
+        st.download_button("📂 Download assignments.csv", data=open("assignments.csv", "rb").read(), file_name="assignments.csv")
+    else:
+        st.warning("No assignment data found to export.")
+
+# --------------------------------------------------------
+# Section 7 — Final Polish & Notes
+# --------------------------------------------------------
+st.header("✨ Final Project Summary")
+
+st.markdown("""
+**Smart Timetable Assistant** brings together:
+- 🧠 AI Natural Language Scheduling  
+- 🔎 Conflict Detection & Intelligent Rescheduling  
+- ⏰ Assignment Tracking with Deadlines  
+- 📚 Smart Study Recommendations  
+- 📊 Productivity Analytics Dashboard  
+- 📤 Exportable CSV Reports  
+
+This marks the final milestone per Weeks 7‑8 deliverables:
+**Production‑ready academic scheduling assistant**, ideal for portfolio demonstration and viva presentation.
+""")
+
+st.info("🎓 Tip: Deploy on *Streamlit Cloud* or *Render* for live demo submission.")
