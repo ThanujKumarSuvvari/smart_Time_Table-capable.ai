@@ -56,14 +56,6 @@ This version extends the Week 1–2 prototype with intelligent scheduling logi
 | Assignment Tracker | Add and view assignment deadlines stored locally. |
 | Basic Reminders | Warns when due dates approach within 2 days. |
 
-## ⚙️ Setup Instructions
-
-1. **Clone Repository**
-   ```bash
-   git clone [github.com](https://github.com/)<your‑username>/smart‑timetable‑assistant.git
-   cd smart‑timetable‑assistant
-
-   # 🎓 Smart Timetable Assistant AI Agent
 
 An AI-powered academic time‑management assistant developed for the **Capabl Smart Timetable Project (Weeks 1–8)**.  
 This version implements **Weeks 4 – 5** features: conversational scheduling, conflict suggestions, and intelligent study‑time recommendations.
@@ -99,10 +91,43 @@ This version implements **Weeks 4 – 5** features: conversational schedul
 
 ---
 
-## ⚙️ Setup Instructions
+# 🎯 Smart Timetable Assistant AI Agent
 
-1. **Clone Repository**
+An **AI-powered academic schedule assistant** that integrates Google Calendar, LangChain/OpenAI-based scheduling logic, conflict detection, assignment management, and smart study recommendations.  
+Built as part of the **Productivity Technology & Calendar Management** domain.
+
+---
+
+## 🚀 Features
+
+- 🧩 **Google Calendar Integration** – OAuth 2.0 authentication & real-time events  
+- 💬 **Conversational Scheduling** – Natural language event creation powered by OpenAI  
+- ⚠️ **Conflict Detection** – Detect overlapping events with intelligent suggestions  
+- 📘 **Assignment Tracker** – Add, view, and prioritize academic tasks  
+- 📈 **Analytics Dashboard** – Insights on time allocation (study, class, others)  
+- 🧠 **Smart Recommendations** – AI-based study block & rescheduling advice  
+- 📤 **Export** – Download calendar or assignment data as `.csv` reports  
+- 🌐 **Cloud Ready** – Streamlit Cloud or Render deployment support
+
+---
+
+## 🧰 Tech Stack
+
+| Layer | Technology |
+|-------|-------------|
+| **Frontend/UI** | Streamlit |
+| **Backend** | Python + Google Calendar API + LangChain (OpenAI) |
+| **LLM** | GPT‑3.5‑Turbo (OpenAI API) |
+| **Database** | Local CSV (assignments, schedule storage) |
+| **Deployment** | Streamlit Cloud |
+| **Calendar API Scope** | `[googleapis.com](https://www.googleapis.com/auth/calendar)` |
+
+---
+
+## 🔧 Setup Instructions
+
+1. **Clone this repo**
+
    ```bash
-   git clone [github.com](https://github.com/)<your-username>/smart-timetable-assistant.git
-   cd smart-timetable-assistant
-
+   git clone [github.com](https://github.com/yourusername/SmartTimetableAssistant.git)
+   cd SmartTimetableAssistant
