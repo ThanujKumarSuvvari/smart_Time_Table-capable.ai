@@ -131,3 +131,8 @@ Built as part of the **Productivity Technology & Calendar Management** domain.
    ```bash
    git clone [github.com](https://github.com/yourusername/SmartTimetableAssistant.git)
    cd SmartTimetableAssistant
+
+deployed **smart_timetable_assitant link:**
+
+https://projection-predict-singer-never.trycloudflare.com
+
