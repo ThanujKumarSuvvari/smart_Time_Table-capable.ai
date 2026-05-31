@@ -1,0 +1,14 @@
+Mandatory
+Google OAuth Client ID: GOOGLE_CLIENT_ID
+Google OAuth Client Secret: GOOGLE_CLIENT_SECRET
+Google Calendar ID: GOOGLE_CALENDAR_ID
+
+optional
+SMTP host: SMTP_HOST
+SMTP port: SMTP_PORT
+SMTP username: SMTP_USERNAME
+SMTP password: SMTP_PASSWORD
+SMTP from email: SMTP_FROM
+Twilio Account SID: TWILIO_ACCOUNT_SID
+Twilio Auth Token: TWILIO_AUTH_TOKEN
+Twilio From Number: TWILIO_FROM_NUMBER
